@@ -6,6 +6,7 @@ const API_URL = import.meta.env.VITE_API_URL;
 function App() {
   const [destinations, setDestinations] = useState([]);
   const [country, setCountry] = useState('');
+  const [cedula, setCedula] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -30,9 +31,15 @@ function App() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
+
+    if (!cedula || isNaN(cedula)) {
+      setErrorMessage('Please enter a valid ID number.');
+      return;
+    }
+
     setSubmitting(true);
     try {
-      await axios.post(`${API_URL}/api/destinations`, { country });
+      await axios.post(`${API_URL}/api/destinations`, { country, cedula });
       setCountry('');
       await fetchDestinations();
     } catch (error) {
@@ -78,13 +85,23 @@ function App() {
               <div className="card-body">
                 <form onSubmit={handleSubmit}>
                   <div className="row g-2 align-items-center">
-                    <div className="col-md-9">
+                    <div className="col-md-4">
+                      <input
+                        type="text"
+                        className="form-control form-control-lg"
+                        value={cedula}
+                        onChange={(e) => setCedula(e.target.value)}
+                        placeholder="Your ID number"
+                        required
+                      />
+                    </div>
+                    <div className="col-md-5">
                       <input
                         type="text"
                         className="form-control form-control-lg"
                         value={country}
                         onChange={(e) => setCountry(e.target.value)}
-                        placeholder="Enter a country (e.g. Japan, Colombia, Italy)"
+                        placeholder="Enter a country (e.g. Japan, Colombia)"
                         required
                       />
                     </div>
@@ -94,6 +111,17 @@ function App() {
                       </button>
                     </div>
                   </div>
+                  {cedula && !isNaN(cedula) && (
+                    <div className="mt-2">
+                      <small className="text-muted">
+                        ID {parseInt(cedula, 10) % 2 === 0 ? 'even' : 'odd'}: will extract{' '}
+                        {parseInt(cedula, 10) % 2 === 0
+                          ? <strong>languages and region</strong>
+                          : <strong>currencies and anthem</strong>
+                        }
+                      </small>
+                    </div>
+                  )}
                 </form>
               </div>
             </div>
@@ -123,6 +151,9 @@ function App() {
                         <th scope="col">Capital</th>
                         <th scope="col">Population</th>
                         <th scope="col">Region</th>
+                        <th scope="col">Languages</th>
+                        <th scope="col">Currencies</th>
+                        <th scope="col">Anthem</th>
                         <th scope="col" className="text-end">Actions</th>
                       </tr>
                       </thead>
@@ -133,8 +164,14 @@ function App() {
                           <td>{dest.capital || 'N/A'}</td>
                           <td>{formatPopulation(dest.population)}</td>
                           <td>
-                            <span className="badge rounded-pill text-bg-info">{dest.region || 'N/A'}</span>
+                            {dest.region
+                              ? <span className="badge rounded-pill text-bg-info">{dest.region}</span>
+                              : <span className="text-muted">—</span>
+                            }
                           </td>
+                          <td>{dest.languages || <span className="text-muted">—</span>}</td>
+                          <td>{dest.currencies || <span className="text-muted">—</span>}</td>
+                          <td>{dest.anthem || <span className="text-muted">—</span>}</td>
                           <td className="text-end">
                             <button className="btn btn-outline-danger btn-sm" onClick={() => handleDelete(dest.id)}>
                               Remove

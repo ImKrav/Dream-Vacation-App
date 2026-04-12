@@ -28,7 +28,10 @@ const createTable = async () => {
       country VARCHAR(255) NOT NULL,
       capital VARCHAR(255),
       population BIGINT,
-      region VARCHAR(255)
+      region VARCHAR(255),
+      languages TEXT,
+      currencies TEXT,
+      anthem TEXT
     );
   `;
   try {
@@ -57,21 +60,65 @@ app.get('/api/destinations', async (req, res) => {
 });
 
 app.post('/api/destinations', async (req, res) => {
-  const { country } = req.body;
+  const { country, cedula } = req.body;
+
+  if (!cedula || isNaN(cedula)) {
+    return res.status(400).json({ error: 'A valid ID number is required.' });
+  }
+
+  const cedulaNumber = parseInt(cedula, 10);
+  const isEven = cedulaNumber % 2 === 0;
+
   try {
     // Fetch country data from external API
     const response = await axios.get(`${process.env.COUNTRIES_API_BASE_URL}/name/${encodeURIComponent(country)}`);
     const countryInfo = response.data[0];
 
+    const capital = countryInfo.capital && countryInfo.capital.length > 0 ? countryInfo.capital[0] : null;
+    const population = countryInfo.population || null;
+
+    let languages = null;
+    let region = null;
+    let currencies = null;
+    let anthem = null;
+
+    if (isEven) {
+      // Even ID: extract languages and region
+      if (countryInfo.languages && Array.isArray(countryInfo.languages)) {
+        languages = countryInfo.languages.map(l => l.name).join(', ');
+      }
+      region = countryInfo.region || null;
+    } else {
+      // Odd ID: extract currencies and anthem
+      if (countryInfo.currencies && Array.isArray(countryInfo.currencies)) {
+        currencies = countryInfo.currencies.map(c => `${c.name} (${c.code})`).join(', ');
+      }
+      anthem = countryInfo.anthem || null;
+    }
+
     // Insert data into the MySQL database
     const [result] = await pool.query(
-      'INSERT INTO destinations (country, capital, population, region) VALUES (?, ?, ?, ?)',
-      [country, countryInfo.capital[0], countryInfo.population, countryInfo.region]
+      'INSERT INTO destinations (country, capital, population, region, languages, currencies, anthem) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [country, capital, population, region, languages, currencies, anthem]
     );
-    res.status(201).json({ id: result.insertId, country, capital: countryInfo.capital[0], population: countryInfo.population, region: countryInfo.region });
+
+    res.status(201).json({
+      id: result.insertId,
+      country,
+      capital,
+      population,
+      region,
+      languages,
+      currencies,
+      anthem,
+    });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error in POST /api/destinations:', err.message);
+    if (err.response) {
+      console.error('External API response status:', err.response.status);
+      console.error('External API response data:', err.response.data);
+    }
+    res.status(500).json({ error: 'Internal server error', details: err.message });
   }
 });
 
